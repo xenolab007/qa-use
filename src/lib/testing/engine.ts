@@ -78,6 +78,16 @@ export type TestSuiteDefinition = {
    * The tests to run.
    */
   tests: TestDefinition[]
+
+  /**
+   * Steps to run before each test (e.g. authenticate, set a token).
+   */
+  beforeEach?: string[]
+
+  /**
+   * Steps to run after each test (e.g. log out, reset state).
+   */
+  afterEach?: string[]
 }
 
 export const SYSTEM_PROMPT = `
@@ -223,15 +233,36 @@ function stringifyTest(test: TestDefinition) {
 }
 
 /**
- * Get the prompt for a test.
+ * Get the prompt for a test, with optional before/after steps injected.
  */
-export function getTaskPrompt(test: TestDefinition) {
+export function getTaskPrompt(test: TestDefinition, opts?: { beforeEach?: string[]; afterEach?: string[] }) {
+  let definition = test
+
+  if (opts?.beforeEach?.length || opts?.afterEach?.length) {
+    const offset = opts.beforeEach?.length ?? 0
+    const beforeSteps = (opts.beforeEach ?? []).map((description, i) => ({
+      id: -(offset - i),
+      label: `before-${i + 1}`,
+      description,
+    }))
+    const afterSteps = (opts.afterEach ?? []).map((description, i) => ({
+      id: test.steps.length + i + 1,
+      label: `after-${i + 1}`,
+      description,
+    }))
+
+    definition = {
+      ...test,
+      steps: [...beforeSteps, ...test.steps, ...afterSteps],
+    }
+  }
+
   return `
 ${SYSTEM_PROMPT}
 
 --- TASK STARTS HERE ---
 
-${stringifyTest(test)}
+${stringifyTest(definition)}
 `
 }
 

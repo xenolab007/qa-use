@@ -48,9 +48,9 @@ export const runTest = inngest.createFunction(
   },
   { event: 'test/run' },
   async ({ step, event }) => {
-    const testRunId = event.data.testRunId
+    const { testRunId, beforeEach, afterEach } = event.data
 
-    await step.run(`start-test-run-${testRunId}`, _startTestRun, { testRunId })
+    await step.run(`start-test-run-${testRunId}`, _startTestRun, { testRunId, beforeEach, afterEach })
 
     await step.run(`complete-test-run-${testRunId}`, _pollTaskUntilFinished, { testRunId })
 
@@ -75,9 +75,11 @@ export const runTestSuite = inngest.createFunction(
   },
   { event: 'test-suite/run' },
   async ({ step, event }) => {
+    const { suiteRunId, beforeEach, afterEach } = event.data
+
     const testRunIds = await step.run('get-test-run-ids', async () => {
       const dbTestRuns = await db.query.testRun.findMany({
-        where: eq(schema.testRun.suiteRunId, event.data.suiteRunId),
+        where: eq(schema.testRun.suiteRunId, suiteRunId),
         columns: {
           id: true,
         },
@@ -87,14 +89,16 @@ export const runTestSuite = inngest.createFunction(
     })
 
     await Promise.all(
-      testRunIds.map((testRunId) => step.run(`start-test-run-${testRunId}`, _startTestRun, { testRunId })),
+      testRunIds.map((testRunId) =>
+        step.run(`start-test-run-${testRunId}`, _startTestRun, { testRunId, beforeEach, afterEach }),
+      ),
     )
 
     await Promise.all(
       testRunIds.map((testRunId) => step.run(`complete-test-run-${testRunId}`, _pollTaskUntilFinished, { testRunId })),
     )
 
-    await step.run(`finalize-suite-run`, _finalizeSuiteRun, { suiteId: event.data.suiteRunId, testRunIds })
+    await step.run(`finalize-suite-run`, _finalizeSuiteRun, { suiteId: suiteRunId, testRunIds })
 
     await step.run(`send-suite-notification`, _sendSuiteNotification, { suiteRunId: event.data.suiteRunId })
   },
@@ -105,13 +109,20 @@ export const runTestSuite = inngest.createFunction(
 /**
  * Start a new agent test run and return the ID of the test run.
  */
-async function _startTestRun({ testRunId }: { testRunId: number }): Promise<number> {
+async function _startTestRun({
+  testRunId,
+  beforeEach,
+  afterEach,
+}: {
+  testRunId: number
+  beforeEach?: string[]
+  afterEach?: string[]
+}): Promise<number> {
   const dbTestRun = await db.query.testRun.findFirst({
     where: eq(schema.testRun.id, testRunId),
     with: {
       test: {
         with: {
-          suite: true,
           steps: true,
         },
       },
@@ -139,7 +150,7 @@ async function _startTestRun({ testRunId }: { testRunId: number }): Promise<numb
   // Start browser task
   const buTaskResponse = await client.POST('/sessions', {
     body: {
-      task: getTaskPrompt(definition),
+      task: getTaskPrompt(definition, { beforeEach, afterEach }),
       model: 'bu-max',
       keepAlive: false,
       proxyCountryCode: 'us',
