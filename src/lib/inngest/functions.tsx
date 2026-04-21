@@ -137,21 +137,18 @@ async function _startTestRun({ testRunId }: { testRunId: number }): Promise<numb
   }
 
   // Start browser task
-  const buTaskResponse = await client.POST('/api/v1/run-task', {
+  const buTaskResponse = await client.POST('/sessions', {
     body: {
-      highlight_elements: false,
-      enable_public_share: true,
-      save_browser_data: false,
       task: getTaskPrompt(definition),
-      //
-      // NOTE: Choose between o4-mini and o3. o3 is more expensive but more accurate.
-      // llm_model: 'o4-mini',
-      llm_model: 'o3',
-      //
-      use_adblock: true,
-      use_proxy: true,
-      max_agent_steps: 10,
-      structured_output_json: JSON.stringify(RESPONSE_JSON_SCHEMA),
+      model: 'bu-max',
+      keepAlive: false,
+      proxyCountryCode: 'us',
+      outputSchema: RESPONSE_JSON_SCHEMA,
+      maxCostUsd: 2,
+      enableScheduledTasks: false,
+      enableRecording: false,
+      skills: true,
+      agentmail: true,
     },
   })
 
@@ -201,8 +198,8 @@ async function _pollTaskUntilFinished({ testRunId }: { testRunId: number }) {
       throw new NonRetriableError(`Test run not started: ${testRunId}`)
     }
 
-    const buTaskResponse = await client.GET('/api/v1/task/{task_id}', {
-      params: { path: { task_id: dbTestRun.browserUseId } },
+    const buTaskResponse = await client.GET('/sessions/{session_id}', {
+      params: { path: { session_id: dbTestRun.browserUseId } },
     })
 
     if (buTaskResponse.error || !buTaskResponse.data) {
@@ -210,7 +207,7 @@ async function _pollTaskUntilFinished({ testRunId }: { testRunId: number }) {
     }
 
     switch (buTaskResponse.data.status) {
-      case 'finished': {
+      case 'stopped': {
         const taskResult = getTaskResponse(buTaskResponse.data.output)
 
         if (taskResult.status === 'pass') {
@@ -221,8 +218,8 @@ async function _pollTaskUntilFinished({ testRunId }: { testRunId: number }) {
                 finishedAt: new Date(),
                 status: 'passed',
                 error: null,
-                publicShareUrl: buTaskResponse.data.public_share_url,
-                liveUrl: buTaskResponse.data.live_url,
+                publicShareUrl: null,
+                liveUrl: buTaskResponse.data.liveUrl,
               })
               .where(eq(schema.testRun.id, dbTestRun.id))
 
@@ -244,8 +241,8 @@ async function _pollTaskUntilFinished({ testRunId }: { testRunId: number }) {
                 finishedAt: new Date(),
                 status: 'failed',
                 error: taskResult.error,
-                publicShareUrl: buTaskResponse.data.public_share_url,
-                liveUrl: buTaskResponse.data.live_url,
+                publicShareUrl: null,
+                liveUrl: buTaskResponse.data.liveUrl,
               })
               .where(eq(schema.testRun.id, dbTestRun.id))
 
@@ -268,13 +265,14 @@ async function _pollTaskUntilFinished({ testRunId }: { testRunId: number }) {
       }
 
       case 'running':
-      case 'created': {
-        if (buTaskResponse.data.live_url) {
+      case 'created':
+      case 'idle': {
+        if (buTaskResponse.data.liveUrl) {
           await db
             .update(schema.testRun)
             .set({
-              liveUrl: buTaskResponse.data.live_url,
-              publicShareUrl: buTaskResponse.data.public_share_url,
+              liveUrl: buTaskResponse.data.liveUrl,
+              publicShareUrl: null,
             })
             .where(eq(schema.testRun.id, dbTestRun.id))
         }
@@ -283,9 +281,8 @@ async function _pollTaskUntilFinished({ testRunId }: { testRunId: number }) {
         break
       }
 
-      case 'failed':
-      case 'paused':
-      case 'stopped': {
+      case 'timed_out':
+      case 'error': {
         await db
           .update(schema.testRun)
           .set({

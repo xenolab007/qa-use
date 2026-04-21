@@ -19,9 +19,12 @@ export const RESPONSE_JSON_SCHEMA = z.toJSONSchema(zResponse)
 
 /**
  * Get the task response from the output.
+ *
+ * v3 returns `output` as a parsed object matching the `outputSchema`, so we validate
+ * directly. Legacy string inputs (from v1 or older persisted data) are parsed first.
  */
-export function getTaskResponse(output: string | null): TaskResponse {
-  if (!output) {
+export function getTaskResponse(output: unknown): TaskResponse {
+  if (output == null) {
     return {
       status: 'failing',
       steps: [],
@@ -29,26 +32,29 @@ export function getTaskResponse(output: string | null): TaskResponse {
     }
   }
 
-  try {
-    const parsed = JSON.parse(output)
-    const response = zResponse.safeParse(parsed)
-
-    if (!response.success) {
+  let candidate: unknown = output
+  if (typeof output === 'string') {
+    try {
+      candidate = JSON.parse(output)
+    } catch {
       return {
         status: 'failing',
         steps: [],
-        error: `Failed to parse task response: ${response.error.message}`,
+        error: 'Failed to parse task response',
       }
     }
+  }
 
-    return response.data
-  } catch {
+  const response = zResponse.safeParse(candidate)
+  if (!response.success) {
     return {
       status: 'failing',
       steps: [],
-      error: 'Failed to parse task response',
+      error: `Failed to parse task response: ${response.error.message}`,
     }
   }
+
+  return response.data
 }
 
 export type TestDefinition = {

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git apply:*)",
+      "Bash(cp /tmp/v3.d.ts src/lib/api/v3.d.ts)"
+    ]
+  }
+}

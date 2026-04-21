@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:types": "tsc --noEmit",
-    "openapi:gen": "openapi-typescript https://api.browser-use.com/openapi.json -o ./src/lib/api/v1.d.ts"
+    "openapi:gen": "openapi-typescript https://docs.browser-use.com/cloud/openapi/v3.json -o ./src/lib/api/v3.d.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.14",
