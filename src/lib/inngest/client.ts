@@ -9,12 +9,16 @@ export type HelloEvent = {
 export type RunTestSuiteEvent = {
   data: {
     suiteRunId: number
+    beforeEach?: string[]
+    afterEach?: string[]
   }
 }
 
 export type RunTestEvent = {
   data: {
     testRunId: number
+    beforeEach?: string[]
+    afterEach?: string[]
   }
 }
 
