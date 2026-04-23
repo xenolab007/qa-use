@@ -61,10 +61,11 @@ export async function POST() {
   try {
     const browser = await chromium.connectOverCDP(cdpUrl)
     const context = browser.contexts()[0] ?? (await browser.newContext())
-    const page = context.pages()[0] ?? (await context.newPage())
+    // Always open a fresh page so we're not fighting an existing navigation
+    const page = await context.newPage()
 
-    // Navigate to site
-    await page.goto('https://ai.xeno.in')
+    // Navigate to site and wait for full load
+    await page.goto('https://ai.xeno.in', { waitUntil: 'networkidle', timeout: 30_000 })
 
     // Set localStorage payload directly — no API call needed
     const lsd = {
@@ -85,14 +86,16 @@ export async function POST() {
       }),
     }
 
+    // Set localStorage (no reload in evaluate — it throws when page navigates mid-call)
     await page.evaluate((payload) => {
       Object.entries(payload).forEach(([key, value]) => {
         localStorage.setItem(key, value)
       })
-      location.reload()
     }, lsd)
 
-    await page.waitForLoadState('networkidle')
+    // Use Playwright's reload so it properly awaits the navigation
+    await page.reload({ waitUntil: 'networkidle', timeout: 30_000 })
+
     await browser.close()
   } catch (err) {
     await client.PATCH('/browsers/{session_id}', {
