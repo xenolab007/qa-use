@@ -153,7 +153,7 @@ async function _startTestRun({
       task: getTaskPrompt(definition, { beforeEach, afterEach }),
       model: 'bu-mini',
       keepAlive: false,
-      proxyCountryCode: 'us',
+      proxyCountryCode: null,
       outputSchema: RESPONSE_JSON_SCHEMA,
       maxCostUsd: 2,
       enableScheduledTasks: false,
