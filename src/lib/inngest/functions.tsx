@@ -147,10 +147,24 @@ async function _startTestRun({
     })),
   }
 
+  // Build setup steps from env (e.g. auth) and merge with caller-provided beforeEach
+  const setupSteps: string[] = process.env.BROWSER_SETUP_STEPS
+    ? (JSON.parse(process.env.BROWSER_SETUP_STEPS) as string[])
+    : []
+
+  const rawPrompt = getTaskPrompt(definition, {
+    beforeEach: [...setupSteps, ...(beforeEach ?? [])],
+    afterEach,
+  })
+
+  const task = process.env.TEST_AUTH_SECRET
+    ? rawPrompt.replaceAll('{{TEST_AUTH_SECRET}}', process.env.TEST_AUTH_SECRET)
+    : rawPrompt
+
   // Start browser task
   const buTaskResponse = await client.POST('/sessions', {
     body: {
-      task: getTaskPrompt(definition, { beforeEach, afterEach }),
+      task,
       model: 'bu-mini',
       keepAlive: false,
       proxyCountryCode: null,
