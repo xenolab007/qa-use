@@ -147,10 +147,13 @@ async function _startTestRun({
     })),
   }
 
-  // Build setup steps from env (e.g. auth) and merge with caller-provided beforeEach.
-  // The value may be a plain JSON array or base64-encoded (depending on how the K8s
-  // secret was stored — stringData vs data).
+  // When a persistent profile is configured it already holds auth state (localStorage,
+  // cookies) seeded by /api/browser-use/refresh-profile. Skip BROWSER_SETUP_STEPS so
+  // the login steps never appear as AI-evaluated task steps.
+  const profileId = process.env.BROWSER_USE_PROFILE_ID || null
+
   const setupSteps: string[] = (() => {
+    if (profileId) return [] // profile handles auth; no need to inject setup steps
     const raw = process.env.BROWSER_SETUP_STEPS
     if (!raw) return []
     try {
@@ -174,6 +177,7 @@ async function _startTestRun({
     body: {
       task,
       model: 'bu-mini',
+      profileId,
       keepAlive: false,
       proxyCountryCode: null,
       outputSchema: RESPONSE_JSON_SCHEMA,
