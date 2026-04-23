@@ -4,7 +4,7 @@ pipeline {
     }
 
     environment {
-        IMAGE_REPOSITORY = "${getAccountKeyByBranch(env.BRANCH_NAME)}.dkr.ecr.ap-south-1.amazonaws.com/qa-use"
+        IMAGE_REPOSITORY = "${getAccountKeyByBranch(env.BRANCH_NAME)}.dkr.ecr.ap-south-1.amazonaws.com"
         IMAGE_NAME = "qa-use"
         IMAGE_TAG = """${sh(
                     script: 'git rev-parse --short HEAD',
@@ -108,7 +108,7 @@ pipeline {
                             if [ -f "\$VALUES_FILE" ]; then
                                 echo "Updating values/\$VALUES_FILE..."
 
-                                sed -i "s|repository:.*|repository: '${IMAGE_REPOSITORY}'|g" "\$VALUES_FILE"
+                                sed -i "s|repository:.*|repository: '${IMAGE_REPOSITORY}/${IMAGE_NAME}' |g" "\$VALUES_FILE"
                                 sed -i "s|tag:.*|tag: '${GIT_TAG}'|g" "\$VALUES_FILE"
 
                                 echo "Updated values/\$VALUES_FILE"
