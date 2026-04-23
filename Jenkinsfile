@@ -4,7 +4,7 @@ pipeline {
     }
 
     environment {
-        IMAGE_REPOSITORY = "${getAccountKeyByBranch(env.BRANCH_NAME)}.dkr.ecr.ap-south-1.amazonaws.com"
+        IMAGE_REPOSITORY = "${getAccountKeyByBranch(env.BRANCH_NAME)}.dkr.ecr.ap-south-1.amazonaws.com/qa-use"
         IMAGE_NAME = "qa-use"
         IMAGE_TAG = """${sh(
                     script: 'git rev-parse --short HEAD',
