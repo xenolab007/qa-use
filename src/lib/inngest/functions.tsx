@@ -151,15 +151,15 @@ async function _startTestRun({
   const buTaskResponse = await client.POST('/sessions', {
     body: {
       task: getTaskPrompt(definition, { beforeEach, afterEach }),
-      model: 'bu-max',
+      model: 'bu-mini',
       keepAlive: false,
       proxyCountryCode: 'us',
       outputSchema: RESPONSE_JSON_SCHEMA,
       maxCostUsd: 2,
       enableScheduledTasks: false,
       enableRecording: false,
-      skills: true,
-      agentmail: true,
+      skills: false,
+      agentmail: false,
     },
   })
 
