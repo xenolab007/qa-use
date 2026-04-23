@@ -160,6 +160,8 @@ async function _startTestRun({
       enableRecording: false,
       skills: false,
       agentmail: false,
+      workspaceId: process.env.BROWSER_USE_WORKSPACE_ID || undefined,
+      cacheScript: process.env.BROWSER_USE_WORKSPACE_ID ? true : null,
     },
   })
 
