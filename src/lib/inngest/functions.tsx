@@ -147,10 +147,18 @@ async function _startTestRun({
     })),
   }
 
-  // Build setup steps from env (e.g. auth) and merge with caller-provided beforeEach
-  const setupSteps: string[] = process.env.BROWSER_SETUP_STEPS
-    ? (JSON.parse(process.env.BROWSER_SETUP_STEPS) as string[])
-    : []
+  // Build setup steps from env (e.g. auth) and merge with caller-provided beforeEach.
+  // The value may be a plain JSON array or base64-encoded (depending on how the K8s
+  // secret was stored — stringData vs data).
+  const setupSteps: string[] = (() => {
+    const raw = process.env.BROWSER_SETUP_STEPS
+    if (!raw) return []
+    try {
+      return JSON.parse(raw) as string[]
+    } catch {
+      return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) as string[]
+    }
+  })()
 
   const rawPrompt = getTaskPrompt(definition, {
     beforeEach: [...setupSteps, ...(beforeEach ?? [])],
