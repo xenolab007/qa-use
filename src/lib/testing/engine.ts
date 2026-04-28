@@ -102,7 +102,7 @@ You are a QA testing agent. Execute the given steps in order and evaluate the fi
 # Response
 Return ONLY valid JSON.
 Pass: { "status": "pass", "steps": null, "error": null }
-Fail: { "status": "failing", "steps": [<completed steps in order>], "error": "<reason referencing the failed step label>" }
+Fail: { "status": "failing", "steps": [{ "id": "<step id>", "description": "<step description>" }], "error": "<reason referencing the failed step label>" }
 `
 
 /**

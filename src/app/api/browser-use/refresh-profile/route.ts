@@ -24,6 +24,11 @@ export async function POST() {
     return NextResponse.json({ error: 'TEST_AUTH_TOKEN is not set' }, { status: 400 })
   }
 
+  const refreshToken = process.env.TEST_REFRESH_TOKEN
+  if (!refreshToken) {
+    return NextResponse.json({ error: 'TEST_REFRESH_TOKEN is not set' }, { status: 400 })
+  }
+
   // Create a raw browser session (no AI) with the profile attached
   const createRes = await client.POST('/browsers', {
     body: {
@@ -72,7 +77,7 @@ export async function POST() {
       navBarData:
         '[{"slug":"customer_360","enabled":true,"config":{},"children":[{"slug":"persona","enabled":true,"children":[]},{"slug":"offers","enabled":true,"children":[]},{"slug":"orders","enabled":true,"children":[]},{"slug":"loyalty","enabled":true,"children":[]},{"slug":"communication","enabled":true,"children":[]},{"slug":"otp","enabled":true,"children":[]},{"slug":"events","enabled":true,"children":[]},{"slug":"edit","enabled":true,"children":[]}]}]',
       user: JSON.stringify({
-        refreshToken: 'e9af3ff6-5425-4c88-bb04-29fba0c481ef',
+        refreshToken,
         tokenId,
         userId: 4032,
         merchantId: 120,
