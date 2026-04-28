@@ -179,7 +179,7 @@ async function _startTestRun({
       model: 'bu-mini',
       profileId,
       keepAlive: false,
-      proxyCountryCode: null,
+      proxyCountryCode: 'in',
       outputSchema: RESPONSE_JSON_SCHEMA,
       maxCostUsd: 2,
       enableScheduledTasks: false,
