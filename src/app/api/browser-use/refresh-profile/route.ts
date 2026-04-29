@@ -116,6 +116,16 @@ export async function POST(request: Request) {
 
     await page.reload({ waitUntil: 'networkidle', timeout: 30_000 })
 
+    // Wait until the app has fully initialized (not stuck on login/otp page).
+    // Once past login, the app fetches full user/merchant data and writes it to
+    // localStorage — the profile saves that complete state.
+    await page.waitForFunction(
+      () => !window.location.pathname.includes('/login') && !window.location.pathname.includes('/otp'),
+      { timeout: 30_000 },
+    )
+    // Extra pause so async data fetching finishes writing to localStorage
+    await new Promise((r) => setTimeout(r, 5_000))
+
     await browser.close()
   } catch (err) {
     await client.PATCH('/browsers/{session_id}', {
