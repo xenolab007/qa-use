@@ -6,14 +6,21 @@ import { client } from '@/lib/api/client'
 /**
  * POST /api/browser-use/refresh-profile
  *
- * Creates a raw (no-AI) Browser Use browser session, connects via CDP,
- * sets the auth localStorage payload, then stops the session — saving
- * auth state into BROWSER_USE_PROFILE_ID.
+ * Seeds BROWSER_USE_PROFILE_ID with auth state by opening a raw browser via CDP
+ * and writing localStorage directly — no AI cost, completes in seconds.
  *
- * Call once after creating the profile, and again when TEST_AUTH_TOKEN expires.
- * No LLM cost; completes in a few seconds.
+ * Body (optional JSON): pass your full localStorage snapshot to override defaults.
+ * The tokenId inside `user` is always replaced with TEST_AUTH_TOKEN so it's fresh.
+ *
+ * Example body:
+ * {
+ *   "user": "{\"refreshToken\":\"...\",\"tokenId\":\"ignored\",\"userId\":4032,...}",
+ *   "merchant": "{\"id\":120,\"name\":\"Xeno Dev\",...}",
+ *   "navBarData": "[...]",
+ *   "userDetails": "{...}"
+ * }
  */
-export async function POST() {
+export async function POST(request: Request) {
   const profileId = process.env.BROWSER_USE_PROFILE_ID
   if (!profileId) {
     return NextResponse.json({ error: 'BROWSER_USE_PROFILE_ID is not set' }, { status: 400 })
@@ -27,6 +34,37 @@ export async function POST() {
   const refreshToken = process.env.TEST_REFRESH_TOKEN
   if (!refreshToken) {
     return NextResponse.json({ error: 'TEST_REFRESH_TOKEN is not set' }, { status: 400 })
+  }
+
+  // Accept a full localStorage snapshot from the request body
+  let bodySnapshot: Record<string, string> = {}
+  try {
+    const text = await request.text()
+    if (text) bodySnapshot = JSON.parse(text) as Record<string, string>
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  // Merge: body snapshot wins, but always inject fresh tokenId + refreshToken into user
+  const userBase = bodySnapshot.user
+    ? (JSON.parse(bodySnapshot.user) as Record<string, unknown>)
+    : { userId: 4032, merchantId: 120 }
+
+  const lsd: Record<string, string> = {
+    // Defaults for required keys (overridden by body if provided)
+    navBarData:
+      '[{"slug":"customer_360","enabled":true,"config":{},"children":[{"slug":"persona","enabled":true,"children":[]},{"slug":"offers","enabled":true,"children":[]},{"slug":"orders","enabled":true,"children":[]},{"slug":"loyalty","enabled":true,"children":[]},{"slug":"communication","enabled":true,"children":[]},{"slug":"otp","enabled":true,"children":[]},{"slug":"events","enabled":true,"children":[]},{"slug":"edit","enabled":true,"children":[]}]}]',
+    merchant: JSON.stringify({ id: 120, name: 'Xeno Dev', currencyCode: 'INR' }),
+    userDetails: JSON.stringify({
+      id: 4032,
+      phone: '9582382346',
+      name: 'Xeno Test Suite',
+      email: 'xeno-testsuite@xeno.in',
+    }),
+    // Spread the full body snapshot on top of defaults
+    ...bodySnapshot,
+    // Always override user with fresh tokens
+    user: JSON.stringify({ ...userBase, tokenId, refreshToken }),
   }
 
   // Create a raw browser session (no AI) with the profile attached
@@ -66,39 +104,16 @@ export async function POST() {
   try {
     const browser = await chromium.connectOverCDP(cdpUrl)
     const context = browser.contexts()[0] ?? (await browser.newContext())
-    // Always open a fresh page so we're not fighting an existing navigation
     const page = await context.newPage()
 
-    // Navigate to site and wait for full load
     await page.goto('https://ai.xeno.in', { waitUntil: 'networkidle', timeout: 30_000 })
 
-    // Set localStorage payload directly — no API call needed
-    const lsd = {
-      navBarData:
-        '[{"slug":"customer_360","enabled":true,"config":{},"children":[{"slug":"persona","enabled":true,"children":[]},{"slug":"offers","enabled":true,"children":[]},{"slug":"orders","enabled":true,"children":[]},{"slug":"loyalty","enabled":true,"children":[]},{"slug":"communication","enabled":true,"children":[]},{"slug":"otp","enabled":true,"children":[]},{"slug":"events","enabled":true,"children":[]},{"slug":"edit","enabled":true,"children":[]}]}]',
-      user: JSON.stringify({
-        refreshToken,
-        tokenId,
-        userId: 4032,
-        merchantId: 120,
-      }),
-      merchant: JSON.stringify({ id: 120, name: 'Xeno Dev', currencyCode: 'INR' }),
-      userDetails: JSON.stringify({
-        id: 4032,
-        phone: '9582382346',
-        name: 'Xeno Test Suite',
-        email: 'xeno-testsuite@xeno.in',
-      }),
-    }
-
-    // Set localStorage (no reload in evaluate — it throws when page navigates mid-call)
     await page.evaluate((payload) => {
       Object.entries(payload).forEach(([key, value]) => {
         localStorage.setItem(key, value)
       })
     }, lsd)
 
-    // Use Playwright's reload so it properly awaits the navigation
     await page.reload({ waitUntil: 'networkidle', timeout: 30_000 })
 
     await browser.close()
@@ -110,7 +125,6 @@ export async function POST() {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 
-  // Stop session — Browser Use saves profile state on stop
   await client.PATCH('/browsers/{session_id}', {
     params: { path: { session_id: browserId } },
     body: { action: 'stop' },
