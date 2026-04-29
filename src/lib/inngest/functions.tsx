@@ -77,6 +77,17 @@ export const runTestSuite = inngest.createFunction(
   async ({ step, event }) => {
     const { suiteRunId, beforeEach, afterEach } = event.data
 
+    // Refresh the browser profile before running tests so every suite starts
+    // with a clean, authenticated browser state regardless of what previous runs did.
+    if (process.env.BROWSER_USE_PROFILE_ID && process.env.APP_URL) {
+      await step.run('refresh-auth-profile', async () => {
+        const res = await fetch(`${process.env.APP_URL}/api/browser-use/refresh-profile`, {
+          method: 'POST',
+        })
+        return res.json()
+      })
+    }
+
     const testRunIds = await step.run('get-test-run-ids', async () => {
       const dbTestRuns = await db.query.testRun.findMany({
         where: eq(schema.testRun.suiteRunId, suiteRunId),
@@ -151,6 +162,7 @@ async function _startTestRun({
   // cookies) seeded by /api/browser-use/refresh-profile. Skip BROWSER_SETUP_STEPS so
   // the login steps never appear as AI-evaluated task steps.
   const profileId = process.env.BROWSER_USE_PROFILE_ID || null
+  console.log('[startTestRun] profileId:', profileId)
 
   const setupSteps: string[] = (() => {
     if (profileId) return [] // profile handles auth; no need to inject setup steps
